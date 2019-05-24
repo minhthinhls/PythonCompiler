@@ -7,8 +7,8 @@ class Parser:
     def __init__(self):
         self.pg = ParserGenerator(
             # A list of all token names accepted by the parser.
-            ['STRING', 'INTEGER', 'FLOAT', 'BOOLEAN',
-             'PRINT', '(', ')', ';', '{', '}',
+            ['STRING', 'INTEGER', 'FLOAT', 'BOOLEAN', 'PI', 'E',
+             'PRINT', 'ABSOLUTE', '(', ')', ';', '{', '}',
              'AND', 'OR', 'NOT', 'IF', 'ELSE',
              '==', '!=', '>=', '>', '<', '<=',
              'SUM', 'SUB', 'MUL', 'DIV'
@@ -20,7 +20,7 @@ class Parser:
                 ('left', ['==', '!=', '>=', '>', '<', '<=']),
                 ('left', ['SUM', 'SUB']),
                 ('left', ['MUL', 'DIV']),
-                ('left', ['STRING', 'INTEGER', 'FLOAT', 'BOOLEAN'])
+                ('left', ['STRING', 'INTEGER', 'FLOAT', 'BOOLEAN', 'PI', 'E'])
             )
         )
         self.parse()
@@ -47,16 +47,11 @@ class Parser:
 
         @self.pg.production('block : statement_full')
         def block_expr(p):
-            return Block(p[0])
+            return Block(p[0], None)
 
         @self.pg.production('block : statement_full block')
         def block_expr_block(p):
-            if type(p[1]) is Block:
-                b = p[1]
-            else:
-                b = Block(p[1])
-            b.add_statement(p[0])
-            return b
+            return Block(p[0], p[1])
 
         @self.pg.production('statement_full : statement ;')
         def statement_full(p):
@@ -121,33 +116,39 @@ class Parser:
             else:
                 raise LogicError("Shouldn't be possible")
 
+        @self.pg.production('expression : ABSOLUTE ( expression )')
+        def expression_absolute(p):
+            return Absolute(p[2])
+
         @self.pg.production('expression : const')
         def expression_const(p):
             return p[0]
 
         @self.pg.production('const : FLOAT')
-        def expression_float(p):
+        def constant_float(p):
             # p is a list of the pieces matched by the right hand side of the rule
             return Float(p[0].getstr())
 
         @self.pg.production('const : BOOLEAN')
-        def expression_boolean(p):
+        def constant_boolean(p):
             # p is a list of the pieces matched by the right hand side of the rule
             return Boolean(p[0].getstr())
 
         @self.pg.production('const : INTEGER')
-        def expression_integer(p):
+        def constant_integer(p):
             return Integer(p[0].getstr())
 
         @self.pg.production('const : STRING')
-        def expression_string(p):
+        def constant_string(p):
             return String(p[0].getstr().strip('"\''))
 
-        """
-        @self.pg.production('expression : NUMBER')
-        def number(p):
-            return Number(p[0].value)
-        """
+        @self.pg.production('const : PI')
+        def constant_pi(p):
+            return ConstantPI(p[0].getstr())
+
+        @self.pg.production('const : E')
+        def constant_e(p):
+            return ConstantE(p[0].getstr())
 
         @self.pg.error
         def error_handle(token):

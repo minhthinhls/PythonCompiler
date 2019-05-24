@@ -27,6 +27,26 @@ class Variable(BaseBox):
         return 'Variable(%s)' % self.name
 
 
+class Absolute(BaseBox):
+    def __init__(self, expression):
+        import re as regex
+        self.value = expression.eval()
+        self.match = regex.search('^-?\d+(.\d+)?$', str(self.value))
+        if self.match:
+            self.value = abs(self.value)
+        else:
+            raise ValueError("Cannot abs() not numerical values !")
+
+    def eval(self):
+        return self.value
+
+    def to_string(self):
+        return str(self.value)
+
+    def rep(self):
+        return 'Absolute(%s)' % self.value
+
+
 class Boolean(BaseBox):
     def __init__(self, value):
         if ["true", "false", "True", "False", "TRUE", "FALSE", ].__contains__(value):
@@ -86,12 +106,36 @@ class String(BaseBox):
         return 'String("%s")' % self.value
 
 
-class Number:
-    def __init__(self, value):
-        self.value = value
+class ConstantPI(BaseBox):
+    def __init__(self, name):
+        import math
+        self.name = str(name)
+        self.value = float(math.pi)
 
     def eval(self):
-        return int(self.value)
+        return self.value
+
+    def to_string(self):
+        return str(self.value)
+
+    def rep(self):
+        return '%s(%f)' % (self.name, self.value)
+
+
+class ConstantE(BaseBox):
+    def __init__(self, name):
+        import math
+        self.name = str(name)
+        self.value = float(math.e)
+
+    def eval(self):
+        return self.value
+
+    def to_string(self):
+        return str(self.value)
+
+    def rep(self):
+        return '%s(%f)' % (self.name, self.value)
 
 
 class BinaryOp(BaseBox):
@@ -161,13 +205,12 @@ class Or(BinaryOp):
 
 
 class Not(BaseBox):
-    def __init__(self, value):
-        self.value = value
+    def __init__(self, expression):
+        self.value = expression.eval()
 
     def eval(self):
-        result = self.value.eval()
-        if isinstance(result, bool):
-            return not bool(result)
+        if isinstance(self.value, bool):
+            return not bool(self.value)
         raise LogicError("Cannot 'not' that")
 
 
@@ -191,9 +234,12 @@ class If(BaseBox):
 
 
 class Block(BaseBox):
-    def __init__(self, statement):
-        self.statements = []
-        self.statements.append(statement)
+    def __init__(self, statement, block):
+        if type(block) is Block:
+            self.statements = block.get_statements()
+            self.statements.insert(0, statement)
+        else:
+            self.statements = [statement]
 
     def add_statement(self, statement):
         self.statements.insert(0, statement)
@@ -205,9 +251,9 @@ class Block(BaseBox):
         print("Block statement's counter: %s" % len(self.statements))
         result = None
         for statement in self.statements:
-            result = statement.eval()
+            result = statement.eval()  # Only now the statement.eval() does effect !
             # print(result.to_string())
-        return result
+        return result  # The result is not been used yet !
 
     def rep(self):
         result = 'Block('
@@ -218,8 +264,8 @@ class Block(BaseBox):
 
 
 class Print:
-    def __init__(self, value):
-        self.value = value
+    def __init__(self, expression):
+        self.value = expression.eval()
 
     def eval(self):
-        print(self.value.eval())
+        print(self.value)

@@ -9,6 +9,7 @@ class Lexer:
     def __add_tokens(self):
         # Print
         self.lexer.add('PRINT', r'print')
+        self.lexer.add('ABSOLUTE', r'abs')
         # Parenthesis
         self.lexer.add('(', r'\(')
         self.lexer.add(')', r'\)')
@@ -36,8 +37,10 @@ class Lexer:
         self.lexer.add('MUL', r'\*')
         self.lexer.add('DIV', r'\/')
         # Constant
+        self.lexer.add('E', r'__E__')
+        self.lexer.add('PI', r'__PI__')
         self.lexer.add('FLOAT', r'-?\d+.\d+')
-        self.lexer.add('INTEGER', r'(\-)?\d+')
+        self.lexer.add('INTEGER', r'-?\d+')
         self.lexer.add('STRING', r'(""".?""")|(".?")|(\'.?\')')
         self.lexer.add('BOOLEAN', r'true(?!\w)|false(?!\w)|True(?!\w)|False(?!\w)|TRUE(?!\w)|FALSE(?!\w)')
         # Ignore spaces
