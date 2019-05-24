@@ -8,11 +8,14 @@ class Parser:
         self.pg = ParserGenerator(
             # A list of all token names accepted by the parser.
             ['STRING', 'INTEGER', 'FLOAT', 'BOOLEAN', 'PI', 'E',
-             'PRINT', 'ABSOLUTE', '(', ')', ';', '{', '}',
+             'PRINT', 'ABSOLUTE', 'SIN', 'COS', 'TAN', 'POWER',
+             '(', ')', ';', ',', '{', '}',
              'AND', 'OR', 'NOT', 'IF', 'ELSE',
              '==', '!=', '>=', '>', '<', '<=',
              'SUM', 'SUB', 'MUL', 'DIV'
              ],
+            # A list of precedence rules with ascending precedence, to
+            # disambiguate ambiguous production rules.
             precedence=(
                 ('left', ['IF', 'ELSE', ';']),
                 ('left', ['AND', 'OR']),
@@ -70,17 +73,14 @@ class Parser:
         @self.pg.production('expression : expression MUL expression')
         @self.pg.production('expression : expression DIV expression')
         def expression_binary_operator(p):
-            left = p[0]
-            right = p[2]
-            operator = p[1]
-            if operator.gettokentype() == 'SUM':
-                return Sum(left, right)
-            elif operator.gettokentype() == 'SUB':
-                return Sub(left, right)
-            elif operator.gettokentype() == 'MUL':
-                return Mul(left, right)
-            elif operator.gettokentype() == 'DIV':
-                return Div(left, right)
+            if p[1].gettokentype() == 'SUM':
+                return Sum(p[0], p[2])
+            elif p[1].gettokentype() == 'SUB':
+                return Sub(p[0], p[2])
+            elif p[1].gettokentype() == 'MUL':
+                return Mul(p[0], p[2])
+            elif p[1].gettokentype() == 'DIV':
+                return Div(p[0], p[2])
             else:
                 raise LogicError('Oops, this should not be possible!')
 
@@ -93,32 +93,44 @@ class Parser:
         @self.pg.production('expression : expression AND expression')
         @self.pg.production('expression : expression OR expression')
         def expression_equality(p):
-            left = p[0]
-            right = p[2]
-            check = p[1]
-
-            if check.gettokentype() == '==':
-                return Equal(left, right)
-            elif check.gettokentype() == '!=':
-                return NotEqual(left, right)
-            elif check.gettokentype() == '>=':
-                return GreaterThanEqual(left, right)
-            elif check.gettokentype() == '<=':
-                return LessThanEqual(left, right)
-            elif check.gettokentype() == '>':
-                return GreaterThan(left, right)
-            elif check.gettokentype() == '<':
-                return LessThan(left, right)
-            elif check.gettokentype() == 'AND':
-                return And(left, right)
-            elif check.gettokentype() == 'OR':
-                return Or(left, right)
+            if p[1].gettokentype() == '==':
+                return Equal(p[0], p[2])
+            elif p[1].gettokentype() == '!=':
+                return NotEqual(p[0], p[2])
+            elif p[1].gettokentype() == '>=':
+                return GreaterThanEqual(p[0], p[2])
+            elif p[1].gettokentype() == '<=':
+                return LessThanEqual(p[0], p[2])
+            elif p[1].gettokentype() == '>':
+                return GreaterThan(p[0], p[2])
+            elif p[1].gettokentype() == '<':
+                return LessThan(p[0], p[2])
+            elif p[1].gettokentype() == 'AND':
+                return And(p[0], p[2])
+            elif p[1].gettokentype() == 'OR':
+                return Or(p[0], p[2])
             else:
                 raise LogicError("Shouldn't be possible")
 
         @self.pg.production('expression : ABSOLUTE ( expression )')
         def expression_absolute(p):
             return Absolute(p[2])
+
+        @self.pg.production('expression : SIN ( expression )')
+        def expression_absolute(p):
+            return Sin(p[2])
+
+        @self.pg.production('expression : COS ( expression )')
+        def expression_absolute(p):
+            return Cos(p[2])
+
+        @self.pg.production('expression : TAN ( expression )')
+        def expression_absolute(p):
+            return Tan(p[2])
+
+        @self.pg.production('expression : POWER ( expression , expression )')
+        def expression_absolute(p):
+            return Pow(p[2], p[4])
 
         @self.pg.production('expression : const')
         def expression_const(p):

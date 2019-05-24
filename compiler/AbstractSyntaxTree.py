@@ -27,15 +27,9 @@ class Variable(BaseBox):
         return 'Variable(%s)' % self.name
 
 
-class Absolute(BaseBox):
+class BaseFunction(BaseBox):
     def __init__(self, expression):
-        import re as regex
         self.value = expression.eval()
-        self.match = regex.search('^-?\d+(.\d+)?$', str(self.value))
-        if self.match:
-            self.value = abs(self.value)
-        else:
-            raise ValueError("Cannot abs() not numerical values !")
 
     def eval(self):
         return self.value
@@ -44,11 +38,102 @@ class Absolute(BaseBox):
         return str(self.value)
 
     def rep(self):
+        return 'BaseFunction(%s)' % self.value
+
+
+class Absolute(BaseFunction):
+    def __init__(self, expression):
+        super().__init__(expression)
+        import re as regex
+        self.match = regex.search('^-?\d+(\.\d+)?$', str(self.value))
+        if self.match:
+            self.value = abs(self.value)
+        else:
+            raise ValueError("Cannot abs() not numerical values !")
+
+    def rep(self):
         return 'Absolute(%s)' % self.value
 
 
-class Boolean(BaseBox):
+class Sin(BaseFunction):
+    def __init__(self, expression):
+        super().__init__(expression)
+        import re as regex
+        self.match = regex.search('^-?\d+(\.\d+)?$', str(self.value))
+        if self.match:
+            import math
+            self.value = math.sin(self.value)
+        else:
+            raise ValueError("Cannot sin() not numerical values !")
+
+    def rep(self):
+        return 'Sin(%s)' % self.value
+
+
+class Cos(BaseFunction):
+    def __init__(self, expression):
+        super().__init__(expression)
+        import re as regex
+        self.match = regex.search('^-?\d+(\.\d+)?$', str(self.value))
+        if self.match:
+            import math
+            self.value = math.cos(self.value)
+        else:
+            raise ValueError("Cannot cos() not numerical values !")
+
+    def rep(self):
+        return 'Cos(%s)' % self.value
+
+
+class Tan(BaseFunction):
+    def __init__(self, expression):
+        super().__init__(expression)
+        import re as regex
+        self.match = regex.search('^-?\d+(\.\d+)?$', str(self.value))
+        if self.match:
+            import math
+            self.value = math.tan(self.value)
+        else:
+            raise ValueError("Cannot tan() not numerical values !")
+
+    def rep(self):
+        return 'Tan(%s)' % self.value
+
+
+class Pow(BaseFunction):
+    def __init__(self, expression, expression2):
+        super().__init__(expression)
+        self.value2 = expression2.eval()
+        import re as regex
+        self.match = regex.search('^-?\d+(\.\d+)?$', str(self.value))
+        self.match2 = regex.search('^-?\d+(\.\d+)?$', str(self.value2))
+        if self.match and self.match2:
+            import math
+            self.value = math.pow(self.value, self.value2)
+        else:
+            raise ValueError("Cannot pow() not numerical values !")
+
+    def rep(self):
+        return 'Pow(%s)' % self.value
+
+
+class Constant(BaseBox):
+    def __init__(self):
+        self.value = None
+
+    def eval(self):
+        return self.value
+
+    def to_string(self):
+        return str(self.value)
+
+    def rep(self):
+        return 'Constant(%s)' % self.value
+
+
+class Boolean(Constant):
     def __init__(self, value):
+        super().__init__()
         if ["true", "false", "True", "False", "TRUE", "FALSE", ].__contains__(value):
             if value.lower().__eq__("true"):
                 self.value = True
@@ -57,47 +142,32 @@ class Boolean(BaseBox):
         else:
             raise TypeError("Cannot cast boolean value while initiating Constant !")
 
-    def eval(self):
-        return self.value
-
     def rep(self):
         return 'Boolean(%s)' % self.value
 
 
-class Integer(BaseBox):
+class Integer(Constant):
     def __init__(self, value):
+        super().__init__()
         self.value = int(value)
-
-    def eval(self):
-        return self.value
-
-    def to_string(self):
-        return str(self.value)
 
     def rep(self):
         return 'Integer(%s)' % self.value
 
 
-class Float(BaseBox):
+class Float(Constant):
     def __init__(self, value):
+        super().__init__()
         self.value = float(value)
-
-    def eval(self):
-        return self.value
-
-    def to_string(self):
-        return str(self.value)
 
     def rep(self):
         return 'Float(%s)' % self.value
 
 
-class String(BaseBox):
+class String(Constant):
     def __init__(self, value):
+        super().__init__()
         self.value = str(value)
-
-    def eval(self):
-        return self.value
 
     def to_string(self):
         return '"%s"' % str(self.value)
@@ -106,33 +176,29 @@ class String(BaseBox):
         return 'String("%s")' % self.value
 
 
-class ConstantPI(BaseBox):
+class ConstantPI(Constant):
     def __init__(self, name):
+        super().__init__()
         import math
         self.name = str(name)
-        self.value = float(math.pi)
-
-    def eval(self):
-        return self.value
-
-    def to_string(self):
-        return str(self.value)
+        if str(name).__contains__('-'):
+            self.value = float(-math.pi)
+        else:
+            self.value = float(math.pi)
 
     def rep(self):
         return '%s(%f)' % (self.name, self.value)
 
 
-class ConstantE(BaseBox):
+class ConstantE(Constant):
     def __init__(self, name):
+        super().__init__()
         import math
         self.name = str(name)
-        self.value = float(math.e)
-
-    def eval(self):
-        return self.value
-
-    def to_string(self):
-        return str(self.value)
+        if str(name).__contains__('-'):
+            self.value = float(-math.pi)
+        else:
+            self.value = float(math.pi)
 
     def rep(self):
         return '%s(%f)' % (self.name, self.value)

@@ -11,11 +11,16 @@ if (False) {
     print(5.1111 != 5.1);
     print(5 != 5);
     print(not True);
-} else {
+    
     print(abs(3.5 - 4));
     print(abs(__E__ - __PI__));
     print(__PI__);
     print(__E__);
+} else {
+    print(sin(3.5 - 4));
+    print(cos(__E__ - __PI__));
+    print(tan(__PI__ - __E__));
+    print(pow(-2, 5));
 }
 """
 
