@@ -1,24 +1,25 @@
 from rply.token import BaseBox
-from interpreter.errors import *
+from compiler.errors import *
 
 
 # All token types inherit rply's basebox as rpython needs this
 # These classes represent our Abstract Syntax Tree
-# TODO: deprecate eval() as we move to compiling and then interpreting
+# TODO: deprecate eval(env) as we move to compiling and then interpreting
 
 class Variable(BaseBox):
-    def __init__(self, name):
+    def __init__(self, name, state):
         self.name = str(name)
         self.value = None
+        self.env = state
 
     def get_name(self):
         return str(self.name)
 
-    def eval(self, env):
-        if env.variables.get(self.name, None) is not None:
-            self.value = env.variables[self.name].eval(env)
+    def eval(self):
+        if dict(self.env.variables).get(self.name) is not None:
+            self.value = self.env.variables[self.name].eval()
             return self.value
-        raise LogicError("Not yet defined")
+        raise LogicError("Variable <%s> is not yet defined" % str(self.name))
 
     def to_string(self):
         return str(self.name)
@@ -28,8 +29,9 @@ class Variable(BaseBox):
 
 
 class BaseFunction(BaseBox):
-    def __init__(self, expression):
+    def __init__(self, expression, state):
         self.value = expression.eval()
+        self.env = state
 
     def eval(self):
         return self.value
@@ -42,8 +44,8 @@ class BaseFunction(BaseBox):
 
 
 class Absolute(BaseFunction):
-    def __init__(self, expression):
-        super().__init__(expression)
+    def __init__(self, expression, state):
+        super().__init__(expression, state)
         import re as regex
         self.match = regex.search('^-?\d+(\.\d+)?$', str(self.value))
         if self.match:
@@ -56,8 +58,8 @@ class Absolute(BaseFunction):
 
 
 class Sin(BaseFunction):
-    def __init__(self, expression):
-        super().__init__(expression)
+    def __init__(self, expression, state):
+        super().__init__(expression, state)
         import re as regex
         self.match = regex.search('^-?\d+(\.\d+)?$', str(self.value))
         if self.match:
@@ -71,8 +73,8 @@ class Sin(BaseFunction):
 
 
 class Cos(BaseFunction):
-    def __init__(self, expression):
-        super().__init__(expression)
+    def __init__(self, expression, state):
+        super().__init__(expression, state)
         import re as regex
         self.match = regex.search('^-?\d+(\.\d+)?$', str(self.value))
         if self.match:
@@ -86,8 +88,8 @@ class Cos(BaseFunction):
 
 
 class Tan(BaseFunction):
-    def __init__(self, expression):
-        super().__init__(expression)
+    def __init__(self, expression, state):
+        super().__init__(expression, state)
         import re as regex
         self.match = regex.search('^-?\d+(\.\d+)?$', str(self.value))
         if self.match:
@@ -101,8 +103,8 @@ class Tan(BaseFunction):
 
 
 class Pow(BaseFunction):
-    def __init__(self, expression, expression2):
-        super().__init__(expression)
+    def __init__(self, expression, expression2, state):
+        super().__init__(expression, state)
         self.value2 = expression2.eval()
         import re as regex
         self.match = regex.search('^-?\d+(\.\d+)?$', str(self.value))
@@ -117,9 +119,11 @@ class Pow(BaseFunction):
         return 'Pow(%s)' % self.value
 
 
+# ABSTRACT CLASS! DO NOT USE!
 class Constant(BaseBox):
-    def __init__(self):
+    def __init__(self, state):
         self.value = None
+        self.env = state
 
     def eval(self):
         return self.value
@@ -132,8 +136,8 @@ class Constant(BaseBox):
 
 
 class Boolean(Constant):
-    def __init__(self, value):
-        super().__init__()
+    def __init__(self, value, state):
+        super().__init__(state)
         if ["true", "false", "True", "False", "TRUE", "FALSE", ].__contains__(value):
             if value.lower().__eq__("true"):
                 self.value = True
@@ -147,8 +151,8 @@ class Boolean(Constant):
 
 
 class Integer(Constant):
-    def __init__(self, value):
-        super().__init__()
+    def __init__(self, value, state):
+        super().__init__(state)
         self.value = int(value)
 
     def rep(self):
@@ -156,8 +160,8 @@ class Integer(Constant):
 
 
 class Float(Constant):
-    def __init__(self, value):
-        super().__init__()
+    def __init__(self, value, state):
+        super().__init__(state)
         self.value = float(value)
 
     def rep(self):
@@ -165,8 +169,8 @@ class Float(Constant):
 
 
 class String(Constant):
-    def __init__(self, value):
-        super().__init__()
+    def __init__(self, value, state):
+        super().__init__(state)
         self.value = str(value)
 
     def to_string(self):
@@ -177,8 +181,8 @@ class String(Constant):
 
 
 class ConstantPI(Constant):
-    def __init__(self, name):
-        super().__init__()
+    def __init__(self, name, state):
+        super().__init__(state)
         import math
         self.name = str(name)
         if str(name).__contains__('-'):
@@ -191,8 +195,8 @@ class ConstantPI(Constant):
 
 
 class ConstantE(Constant):
-    def __init__(self, name):
-        super().__init__()
+    def __init__(self, name, state):
+        super().__init__(state)
         import math
         self.name = str(name)
         if str(name).__contains__('-'):
@@ -205,9 +209,29 @@ class ConstantE(Constant):
 
 
 class BinaryOp(BaseBox):
-    def __init__(self, left, right):
+    def __init__(self, left, right, state):
         self.left = left
         self.right = right
+        self.env = state
+
+
+class Assignment(BinaryOp):
+    def eval(self):
+        if isinstance(self.left, Variable):
+            var_name = self.left.get_name()
+            if dict(self.env.variables).get(var_name) is None:
+                self.env.variables[var_name] = self.right.eval()
+                print(self.env.variables)
+                return self.env.variables  # Return the ParserState() that hold the variables.
+
+            # Otherwise raise error
+            raise ImmutableError(var_name)
+
+        else:
+            raise LogicError("Cannot assign to <%s>" % self)
+
+    def rep(self):
+        return 'Assignment(%s, %s)' % (self.left.rep(), self.right.rep())
 
 
 class Sum(BinaryOp):
@@ -271,8 +295,9 @@ class Or(BinaryOp):
 
 
 class Not(BaseBox):
-    def __init__(self, expression):
+    def __init__(self, expression, state):
         self.value = expression.eval()
+        self.env = state
 
     def eval(self):
         if isinstance(self.value, bool):
@@ -281,10 +306,11 @@ class Not(BaseBox):
 
 
 class If(BaseBox):
-    def __init__(self, condition, body, else_body=None):
+    def __init__(self, condition, body, else_body=None, state=None):
         self.condition = condition
         self.body = body
         self.else_body = else_body
+        self.env = state
 
     def eval(self):
         condition = self.condition.eval()
@@ -300,7 +326,8 @@ class If(BaseBox):
 
 
 class Block(BaseBox):
-    def __init__(self, statement, block):
+    def __init__(self, statement, block, state):
+        self.env = state
         if type(block) is Block:
             self.statements = block.get_statements()
             self.statements.insert(0, statement)
@@ -330,8 +357,9 @@ class Block(BaseBox):
 
 
 class Print:
-    def __init__(self, expression):
+    def __init__(self, expression, state):
         self.value = expression.eval()
+        self.env = state
 
     def eval(self):
         print(self.value)

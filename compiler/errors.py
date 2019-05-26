@@ -1,4 +1,6 @@
 class LogicError(Exception):
+    def __init__(self, message):
+        self.message = message
 
     def __str__(self):
         return self.message
@@ -12,7 +14,6 @@ class UnexpectedEndError(Exception):
 
 
 class UnexpectedTokenError(Exception):
-
     def __init__(self, token):
         self.token = token
 
@@ -21,7 +22,7 @@ class UnexpectedTokenError(Exception):
 
 
 class ImmutableError(Exception):
-    message = 'Cannot assign to immutable variable %s'
+    message = 'Cannot assign to immutable variable <%s>'
 
     def __init__(self, name):
         self.name = name

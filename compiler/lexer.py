@@ -48,6 +48,9 @@ class Lexer:
         self.lexer.add('COS', r'cos')
         self.lexer.add('TAN', r'tan')
         self.lexer.add('POWER', r'pow')
+        # Assignment
+        self.lexer.add('LET', r'let(?!\w)')
+        self.lexer.add('IDENTIFIER', "[a-zA-Z_][a-zA-Z0-9_]*")
         # Ignore spaces
         self.lexer.ignore('\s+')
 
