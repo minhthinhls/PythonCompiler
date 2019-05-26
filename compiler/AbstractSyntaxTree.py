@@ -15,9 +15,9 @@ class Variable(BaseBox):
     def get_name(self):
         return str(self.name)
 
-    def eval(self):
+    def eval(self, env):
         if dict(self.env.variables).get(self.name) is not None:
-            self.value = self.env.variables[self.name].eval()
+            self.value = self.env.variables[self.name]
             return self.value
         raise LogicError("Variable <%s> is not yet defined" % str(self.name))
 
@@ -30,11 +30,13 @@ class Variable(BaseBox):
 
 class BaseFunction(BaseBox):
     def __init__(self, expression, state):
-        self.value = expression.eval()
+        self.expression = expression
+        self.value = None
         self.env = state
+        self.roundOffDigits = 10
 
-    def eval(self):
-        return self.value
+    def eval(self, env):
+        raise NotImplementedError("This is abstract method from abstract class BaseFunction(BaseBox){...} !")
 
     def to_string(self):
         return str(self.value)
@@ -46,10 +48,13 @@ class BaseFunction(BaseBox):
 class Absolute(BaseFunction):
     def __init__(self, expression, state):
         super().__init__(expression, state)
+
+    def eval(self, env):
         import re as regex
-        self.match = regex.search('^-?\d+(\.\d+)?$', str(self.value))
-        if self.match:
+        self.value = self.expression.eval(env)
+        if regex.search('^-?\d+(\.\d+)?$', str(self.value)):
             self.value = abs(self.value)
+            return self.value
         else:
             raise ValueError("Cannot abs() not numerical values !")
 
@@ -60,11 +65,14 @@ class Absolute(BaseFunction):
 class Sin(BaseFunction):
     def __init__(self, expression, state):
         super().__init__(expression, state)
+
+    def eval(self, env):
         import re as regex
-        self.match = regex.search('^-?\d+(\.\d+)?$', str(self.value))
-        if self.match:
+        self.value = self.expression.eval(env)
+        if regex.search('^-?\d+(\.\d+)?$', str(self.value)):
             import math
-            self.value = math.sin(self.value)
+            self.value = round(math.sin(self.value), self.roundOffDigits)
+            return self.value
         else:
             raise ValueError("Cannot sin() not numerical values !")
 
@@ -75,11 +83,14 @@ class Sin(BaseFunction):
 class Cos(BaseFunction):
     def __init__(self, expression, state):
         super().__init__(expression, state)
+
+    def eval(self, env):
         import re as regex
-        self.match = regex.search('^-?\d+(\.\d+)?$', str(self.value))
-        if self.match:
+        self.value = self.expression.eval(env)
+        if regex.search('^-?\d+(\.\d+)?$', str(self.value)):
             import math
-            self.value = math.cos(self.value)
+            self.value = round(math.cos(self.value), self.roundOffDigits)
+            return self.value
         else:
             raise ValueError("Cannot cos() not numerical values !")
 
@@ -90,11 +101,14 @@ class Cos(BaseFunction):
 class Tan(BaseFunction):
     def __init__(self, expression, state):
         super().__init__(expression, state)
+
+    def eval(self, env):
         import re as regex
-        self.match = regex.search('^-?\d+(\.\d+)?$', str(self.value))
-        if self.match:
+        self.value = self.expression.eval(env)
+        if regex.search('^-?\d+(\.\d+)?$', str(self.value)):
             import math
-            self.value = math.tan(self.value)
+            self.value = round(math.tan(self.value), self.roundOffDigits)
+            return self.value
         else:
             raise ValueError("Cannot tan() not numerical values !")
 
@@ -105,13 +119,19 @@ class Tan(BaseFunction):
 class Pow(BaseFunction):
     def __init__(self, expression, expression2, state):
         super().__init__(expression, state)
-        self.value2 = expression2.eval()
+        self.expression2 = expression2
+        self.value2 = None
+
+    def eval(self, env):
+        self.value = self.expression.eval(env)
+        self.value2 = self.expression2.eval(env)
         import re as regex
-        self.match = regex.search('^-?\d+(\.\d+)?$', str(self.value))
-        self.match2 = regex.search('^-?\d+(\.\d+)?$', str(self.value2))
-        if self.match and self.match2:
+        match1 = regex.search('^-?\d+(\.\d+)?$', str(self.value))
+        match2 = regex.search('^-?\d+(\.\d+)?$', str(self.value2))
+        if match1 and match2:
             import math
             self.value = math.pow(self.value, self.value2)
+            return self.value
         else:
             raise ValueError("Cannot pow() not numerical values !")
 
@@ -125,7 +145,7 @@ class Constant(BaseBox):
         self.value = None
         self.env = state
 
-    def eval(self):
+    def eval(self, env):
         return self.value
 
     def to_string(self):
@@ -200,9 +220,9 @@ class ConstantE(Constant):
         import math
         self.name = str(name)
         if str(name).__contains__('-'):
-            self.value = float(-math.pi)
+            self.value = float(-math.e)
         else:
-            self.value = float(math.pi)
+            self.value = float(math.e)
 
     def rep(self):
         return '%s(%f)' % (self.name, self.value)
@@ -216,11 +236,11 @@ class BinaryOp(BaseBox):
 
 
 class Assignment(BinaryOp):
-    def eval(self):
+    def eval(self, env):
         if isinstance(self.left, Variable):
             var_name = self.left.get_name()
             if dict(self.env.variables).get(var_name) is None:
-                self.env.variables[var_name] = self.right.eval()
+                self.env.variables[var_name] = self.right.eval(env)
                 print(self.env.variables)
                 return self.env.variables  # Return the ParserState() that hold the variables.
 
@@ -235,71 +255,71 @@ class Assignment(BinaryOp):
 
 
 class Sum(BinaryOp):
-    def eval(self):
-        return self.left.eval() + self.right.eval()
+    def eval(self, env):
+        return self.left.eval(env) + self.right.eval(env)
 
 
 class Sub(BinaryOp):
-    def eval(self):
-        return self.left.eval() - self.right.eval()
+    def eval(self, env):
+        return self.left.eval(env) - self.right.eval(env)
 
 
 class Mul(BinaryOp):
-    def eval(self):
-        return self.left.eval() * self.right.eval()
+    def eval(self, env):
+        return self.left.eval(env) * self.right.eval(env)
 
 
 class Div(BinaryOp):
-    def eval(self):
-        return self.left.eval() / self.right.eval()
+    def eval(self, env):
+        return self.left.eval(env) / self.right.eval(env)
 
 
 class Equal(BinaryOp):
-    def eval(self):
-        return self.left.eval() == self.right.eval()
+    def eval(self, env):
+        return self.left.eval(env) == self.right.eval(env)
 
 
 class NotEqual(BinaryOp):
-    def eval(self):
-        return self.left.eval() != self.right.eval()
+    def eval(self, env):
+        return self.left.eval(env) != self.right.eval(env)
 
 
 class GreaterThan(BinaryOp):
-    def eval(self):
-        return self.left.eval() > self.right.eval()
+    def eval(self, env):
+        return self.left.eval(env) > self.right.eval(env)
 
 
 class LessThan(BinaryOp):
-    def eval(self):
-        return self.left.eval() < self.right.eval()
+    def eval(self, env):
+        return self.left.eval(env) < self.right.eval(env)
 
 
 class GreaterThanEqual(BinaryOp):
-    def eval(self):
-        return self.left.eval() >= self.right.eval()
+    def eval(self, env):
+        return self.left.eval(env) >= self.right.eval(env)
 
 
 class LessThanEqual(BinaryOp):
-    def eval(self):
-        return self.left.eval() <= self.right.eval()
+    def eval(self, env):
+        return self.left.eval(env) <= self.right.eval(env)
 
 
 class And(BinaryOp):
-    def eval(self):
-        return self.left.eval() and self.right.eval()
+    def eval(self, env):
+        return self.left.eval(env) and self.right.eval(env)
 
 
 class Or(BinaryOp):
-    def eval(self):
-        return self.left.eval() or self.right.eval()
+    def eval(self, env):
+        return self.left.eval(env) or self.right.eval(env)
 
 
 class Not(BaseBox):
     def __init__(self, expression, state):
-        self.value = expression.eval()
+        self.value = expression.eval(state)
         self.env = state
 
-    def eval(self):
+    def eval(self, env):
         if isinstance(self.value, bool):
             return not bool(self.value)
         raise LogicError("Cannot 'not' that")
@@ -312,13 +332,13 @@ class If(BaseBox):
         self.else_body = else_body
         self.env = state
 
-    def eval(self):
-        condition = self.condition.eval()
+    def eval(self, env):
+        condition = self.condition.eval(env)
         if bool(condition) is True:
-            return self.body.eval()
+            return self.body.eval(env)
         else:
             if self.else_body is not None:
-                return self.else_body.eval()
+                return self.else_body.eval(env)
         return None
 
     def rep(self):
@@ -340,11 +360,11 @@ class Block(BaseBox):
     def get_statements(self):
         return self.statements
 
-    def eval(self):
+    def eval(self, env):
         print("Block statement's counter: %s" % len(self.statements))
         result = None
         for statement in self.statements:
-            result = statement.eval()  # Only now the statement.eval() does effect !
+            result = statement.eval(env)  # Only now the statement.eval(env) does effect !
             # print(result.to_string())
         return result  # The result is not been used yet !
 
@@ -358,8 +378,8 @@ class Block(BaseBox):
 
 class Print:
     def __init__(self, expression, state):
-        self.value = expression.eval()
+        self.value = expression
         self.env = state
 
-    def eval(self):
-        print(self.value)
+    def eval(self, env):
+        print(self.value.eval(env))

@@ -2,11 +2,17 @@ from compiler.lexer import Lexer
 from compiler.parser import Parser, ParserState
 from pprint import pprint
 
+
+class Environment(object):
+    def __init__(self):
+        self.variables = {}
+
+
 text_input = """
 print(not(5 != 5 or 6 == 6));
 """
 if_else_statement = """
-if (False) {
+if (True) {
     print(False == (5 != 5));
     print(5.1111 != 5.1);
     print(5 != 5);
@@ -27,15 +33,17 @@ if (False) {
 variable = """
 if (True) {
     let a = 5 - 2;
-    
+    let b = 5;
+    print(sin(a));
+    print(a); print(b); print(b - a);
     print(True);
 }
 """
 
 lexer = Lexer().build()  # Build the lexer using LexerGenerator
-tokens = lexer.lex(variable)  # Stream the input to analysis the lexical syntax
+tokens = lexer.lex(if_else_statement)  # Stream the input to analysis the lexical syntax
 
 pprint(list(tokens))
 
 parser = Parser().build()  # Build the LR-parser using ParserGenerator
-parser.parse(lexer.lex(variable), state=ParserState()).eval()
+parser.parse(lexer.lex(if_else_statement), state=ParserState()).eval(Environment())
