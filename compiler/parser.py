@@ -6,8 +6,10 @@ from compiler.errors import *
 # State instance which gets passed to parser !
 class ParserState(object):
     def __init__(self):
-        # We want to hold a dict of declared variables.
+        # We want to hold a dict of global-declared variables & functions.
         self.variables = {}
+        self.functions = {}
+        pass  # End ParserState's constructor !
 
 
 class Parser:
@@ -16,17 +18,17 @@ class Parser:
             # A list of all token names accepted by the parser.
             ['STRING', 'INTEGER', 'FLOAT', 'BOOLEAN', 'PI', 'E',
              'PRINT', 'ABSOLUTE', 'SIN', 'COS', 'TAN', 'POWER',
-             '(', ')', ';', ',', '{', '}',
+             'CONSOLE_INPUT', '(', ')', ';', ',', '{', '}',
              'LET', 'AND', 'OR', 'NOT', 'IF', 'ELSE',
              '=', '==', '!=', '>=', '>', '<', '<=',
-             'SUM', 'SUB', 'MUL', 'DIV', 'IDENTIFIER'
+             'SUM', 'SUB', 'MUL', 'DIV', 'IDENTIFIER', 'FUNCTION'
              ],
             # A list of precedence rules with ascending precedence, to
             # disambiguate ambiguous production rules.
             precedence=(
+                ('left', ['FUNCTION']),
                 ('left', ['LET']),
                 ('left', ['=']),
-                # ('left', [',']),
                 ('left', ['IF', 'ELSE', ';']),
                 ('left', ['AND', 'OR']),
                 ('left', ['NOT']),
@@ -40,17 +42,29 @@ class Parser:
         pass  # End Parser's constructor !
 
     def parse(self):
+        @self.pg.production("main : program")
+        def main_program(state, p):
+            return p[0]
+
+        @self.pg.production('program : statement_full')
+        def program_statement(state, p):
+            return Program(p[0], None, state)
+
+        @self.pg.production('program : statement_full program')
+        def program_statement_program(state, p):
+            return Program(p[0], p[1], state)
+
         @self.pg.production('expression : ( expression )')
         def expression_parenthesis(state, p):
             # In this case we need parenthesis only for precedence
             # so we just need to return the inner expression
             return p[1]
 
-        @self.pg.production('expression : IF ( expression ) { block }')
+        @self.pg.production('statement_full : IF ( expression ) { block }')
         def expression_if(state, p):
             return If(condition=p[2], body=p[5], state=state)
 
-        @self.pg.production('expression : IF ( expression ) { block } ELSE { block }')
+        @self.pg.production('statement_full : IF ( expression ) { block } ELSE { block }')
         def expression_if_else(state, p):
             return If(condition=p[2], body=p[5], else_body=p[9], state=state)
 
@@ -73,6 +87,10 @@ class Parser:
         @self.pg.production('statement : LET IDENTIFIER = expression')
         def statement_assignment(state, p):
             return Assignment(Variable(p[1].getstr(), state), p[3], state)
+
+        @self.pg.production('statement_full : FUNCTION IDENTIFIER ( ) { block }')
+        def statement_func_noargs(state, p):
+            return FunctionDeclaration(name=p[1].getstr(), args=None, block=p[5], state=state)
 
         @self.pg.production('expression : NOT expression')
         def expression_not(state, p):
@@ -122,9 +140,21 @@ class Parser:
             else:
                 raise LogicError("Shouldn't be possible")
 
-        @self.pg.production('expression : PRINT ( expression )')
+        @self.pg.production('expression : CONSOLE_INPUT ( )')
         def program(state, p):
-            return Print(p[2], state)
+            return Input()
+
+        @self.pg.production('expression : CONSOLE_INPUT ( expression )')
+        def program(state, p):
+            return Input(expression=p[2], state=state)
+
+        @self.pg.production('statement : PRINT ( )')
+        def program(state, p):
+            return Print()
+
+        @self.pg.production('statement : PRINT ( expression )')
+        def program(state, p):
+            return Print(expression=p[2], state=state)
 
         @self.pg.production('expression : ABSOLUTE ( expression )')
         def expression_absolute(state, p):
@@ -148,8 +178,13 @@ class Parser:
 
         @self.pg.production('expression : IDENTIFIER')
         def expression_variable(state, p):
-            # cannot return the value of a variable if it isn't yet defined
+            # Cannot return the value of a variable if it isn't yet defined
             return Variable(p[0].getstr(), state)
+
+        @self.pg.production('expression : IDENTIFIER ( )')
+        def expression_call_noargs(state, p):
+            # Cannot return the value of a function if it isn't yet defined
+            return CallFunction(name=p[0].getstr(), args=None, state=state)
 
         @self.pg.production('expression : const')
         def expression_const(state, p):

@@ -6,6 +6,86 @@ from compiler.errors import *
 # These classes represent our Abstract Syntax Tree
 # TODO: deprecate eval(env) as we move to compiling and then interpreting
 
+class Program(BaseBox):
+    def __init__(self, statement, program, state):
+        self.env = state
+        if type(program) is Program:
+            self.statements = program.get_statements()
+            self.statements.insert(0, statement)
+        else:
+            self.statements = [statement]
+
+    def add_statement(self, statement):
+        self.statements.insert(0, statement)
+
+    def get_statements(self):
+        return self.statements
+
+    def eval(self, env):
+        # print("Program<%s> statement's counter: %s" % (self, len(self.statements)))
+        result = None
+        for statement in self.statements:
+            result = statement.eval(env)  # Only now the statement.eval(env) does effect !
+        return result  # The result is not been used yet !
+
+    def rep(self):
+        result = 'Program('
+        for statement in self.statements:
+            result += '\n\t' + statement.rep()
+        result += '\n)'
+        return result
+
+
+class Block(BaseBox):
+    def __init__(self, statement, block, state):
+        self.env = state
+        if type(block) is Block:
+            self.statements = block.get_statements()
+            self.statements.insert(0, statement)
+        else:
+            self.statements = [statement]
+
+    def add_statement(self, statement):
+        self.statements.insert(0, statement)
+
+    def get_statements(self):
+        return self.statements
+
+    def eval(self, env):
+        # print("Block<%s> statement's counter: %s" % (self, len(self.statements)))
+        result = None
+        for statement in self.statements:
+            result = statement.eval(env)  # Only now the statement.eval(env) does effect !
+        return result  # The result is not been used yet !
+
+    def rep(self):
+        result = 'Block('
+        for statement in self.statements:
+            result += '\n\t' + statement.rep()
+        result += '\n)'
+        return result
+
+
+class If(BaseBox):
+    def __init__(self, condition, body, else_body=None, state=None):
+        self.condition = condition
+        self.body = body
+        self.else_body = else_body
+        self.env = state
+
+    def eval(self, env):
+        condition = self.condition.eval(env)
+        if bool(condition) is True:
+            return self.body.eval(env)
+        else:
+            if self.else_body is not None:
+                return self.else_body.eval(env)
+        return None
+
+    def rep(self):
+        return 'If(%s) Then(%s) Else(%s)' % (self.condition.rep(), self.body.rep(), self.else_body.rep())
+
+
 class Variable(BaseBox):
     def __init__(self, name, state):
         self.name = str(name)
@@ -26,6 +106,33 @@ class Variable(BaseBox):
 
     def rep(self):
         return 'Variable(%s)' % self.name
+
+
+class FunctionDeclaration(BaseBox):
+    def __init__(self, name, args, block, state):
+        self.name = name
+        self.args = args
+        self.block = block
+        state.functions[self.name] = self
+
+    def eval(self, env):
+        return self
+
+    def to_string(self):
+        return "<function '%s'>" % self.name
+
+
+class CallFunction(BaseBox):
+    def __init__(self, name, args, state):
+        self.name = name
+        self.args = args
+        self.state = state
+
+    def eval(self, env):
+        return self.state.functions[self.name].block.eval(env)
+
+    def to_string(self):
+        return "<call '%s'>" % self.name
 
 
 class BaseFunction(BaseBox):
@@ -232,17 +339,17 @@ class BinaryOp(BaseBox):
     def __init__(self, left, right, state):
         self.left = left
         self.right = right
-        self.env = state
+        self.state = state
 
 
 class Assignment(BinaryOp):
     def eval(self, env):
         if isinstance(self.left, Variable):
             var_name = self.left.get_name()
-            if dict(self.env.variables).get(var_name) is None:
-                self.env.variables[var_name] = self.right.eval(env)
-                print(self.env.variables)
-                return self.env.variables  # Return the ParserState() that hold the variables.
+            if dict(self.state.variables).get(var_name) is None:
+                self.state.variables[var_name] = self.right.eval(env)
+                # print(self.state.variables)
+                return self.state.variables  # Return the ParserState() that hold the variables.
 
             # Otherwise raise error
             raise ImmutableError(var_name)
@@ -325,61 +432,31 @@ class Not(BaseBox):
         raise LogicError("Cannot 'not' that")
 
 
-class If(BaseBox):
-    def __init__(self, condition, body, else_body=None, state=None):
-        self.condition = condition
-        self.body = body
-        self.else_body = else_body
-        self.env = state
-
-    def eval(self, env):
-        condition = self.condition.eval(env)
-        if bool(condition) is True:
-            return self.body.eval(env)
-        else:
-            if self.else_body is not None:
-                return self.else_body.eval(env)
-        return None
-
-    def rep(self):
-        return 'If(%s) Then(%s) Else(%s)' % (self.condition.rep(), self.body.rep(), self.else_body.rep())
-
-
-class Block(BaseBox):
-    def __init__(self, statement, block, state):
-        self.env = state
-        if type(block) is Block:
-            self.statements = block.get_statements()
-            self.statements.insert(0, statement)
-        else:
-            self.statements = [statement]
-
-    def add_statement(self, statement):
-        self.statements.insert(0, statement)
-
-    def get_statements(self):
-        return self.statements
-
-    def eval(self, env):
-        print("Block statement's counter: %s" % len(self.statements))
-        result = None
-        for statement in self.statements:
-            result = statement.eval(env)  # Only now the statement.eval(env) does effect !
-            # print(result.to_string())
-        return result  # The result is not been used yet !
-
-    def rep(self):
-        result = 'Block('
-        for statement in self.statements:
-            result += '\n\t' + statement.rep()
-        result += '\n)'
-        return result
-
-
-class Print:
-    def __init__(self, expression, state):
+class Print(BaseBox):
+    def __init__(self, expression=None, state=None):
         self.value = expression
         self.env = state
 
     def eval(self, env):
-        print(self.value.eval(env))
+        if self.value is None:
+            print()
+        else:
+            print(self.value.eval(env))
+
+
+class Input(BaseBox):
+    def __init__(self, expression=None, state=None):
+        self.value = expression
+        self.env = state
+
+    def eval(self, env):
+        if self.value is None:
+            result = input()
+        else:
+            result = input(self.value.eval(env))
+
+        import re as regex
+        if regex.search('^-?\d+(\.\d+)?$', str(result)):
+            return float(result)
+        else:
+            return str(result)

@@ -12,7 +12,7 @@ class Lexer:
         self.lexer.add('PI', r'-?__PI__')
         self.lexer.add('FLOAT', r'-?\d+\.\d+')
         self.lexer.add('INTEGER', r'-?\d+')
-        self.lexer.add('STRING', r'(""".?""")|(".?")|(\'.?\')')
+        self.lexer.add('STRING', r'(""".*""")|(".*")|(\'.*\')')
         self.lexer.add('BOOLEAN', r'true(?!\w)|false(?!\w)|True(?!\w)|False(?!\w)|TRUE(?!\w)|FALSE(?!\w)')
         # Mathematical Operators
         self.lexer.add('SUM', r'\+')
@@ -42,6 +42,8 @@ class Lexer:
         self.lexer.add('{', r'\{')
         self.lexer.add('}', r'\}')
         # Function
+        self.lexer.add('CONSOLE_INPUT', r'input')
+        self.lexer.add('FUNCTION', r'function')
         self.lexer.add('PRINT', r'print')
         self.lexer.add('ABSOLUTE', r'abs')
         self.lexer.add('SIN', r'sin')
