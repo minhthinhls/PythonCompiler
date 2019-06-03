@@ -86,6 +86,7 @@ class Parser:
 
         @self.pg.production('statement : LET IDENTIFIER = expression')
         def statement_assignment(state, p):
+            print("LET")
             return Assignment(Variable(p[1].getstr(), state), p[3], state)
 
         @self.pg.production('statement_full : FUNCTION IDENTIFIER ( ) { block }')
@@ -102,12 +103,16 @@ class Parser:
         @self.pg.production('expression : expression DIV expression')
         def expression_binary_operator(state, p):
             if p[1].gettokentype() == 'SUM':
+                print("SUM")
                 return Sum(p[0], p[2], state)
             elif p[1].gettokentype() == 'SUB':
+                print("SUB")
                 return Sub(p[0], p[2], state)
             elif p[1].gettokentype() == 'MUL':
+                print("MUL")
                 return Mul(p[0], p[2], state)
             elif p[1].gettokentype() == 'DIV':
+                print("DIV")
                 return Div(p[0], p[2], state)
             else:
                 raise LogicError('Oops, this should not be possible!')

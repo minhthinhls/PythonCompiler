@@ -60,10 +60,13 @@ function main() {
 main();
 
 """
+parsed_tree = """
+let a = 2 / 5 + 6 * 20;
+"""
 
 lexer = Lexer().build()  # Build the lexer using LexerGenerator
 try:
-    tokens = lexer.lex(call_declared_functions)  # Stream the input to analysis the lexical syntax
+    tokens = lexer.lex(parsed_tree)  # Stream the input to analysis the lexical syntax
     tokenType = map(lambda x: x.gettokentype(), list(tokens))
     tokenName = map(lambda x: x.getstr(), list(tokens))
     # pprint(list(tokens))
@@ -77,7 +80,7 @@ finally:
 SymbolTable = ParserState()
 parser = Parser().build()  # Build the LR-parser using ParserGenerator
 try:
-    parser.parse(lexer.lex(call_declared_functions), state=SymbolTable).eval(Environment())
+    parser.parse(lexer.lex(parsed_tree), state=SymbolTable).eval(Environment())
 except (BaseException, Exception):
     traceback.print_exc()
 finally:
