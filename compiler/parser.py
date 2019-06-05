@@ -1,4 +1,5 @@
 from rply import ParserGenerator
+from compiler.JSONparsedTree import Node
 from compiler.AbstractSyntaxTree import *
 from compiler.errors import *
 
@@ -44,7 +45,7 @@ class Parser:
     def parse(self):
         @self.pg.production("main : program")
         def main_program(state, p):
-            return p[0]
+            return Main(p[0])
 
         @self.pg.production('program : statement_full')
         def program_statement(state, p):
@@ -58,7 +59,7 @@ class Parser:
         def expression_parenthesis(state, p):
             # In this case we need parenthesis only for precedence
             # so we just need to return the inner expression
-            return p[1]
+            return ExpressParenthesis(p[1])
 
         @self.pg.production('statement_full : IF ( expression ) { block }')
         def expression_if(state, p):
@@ -78,15 +79,14 @@ class Parser:
 
         @self.pg.production('statement_full : statement ;')
         def statement_full(state, p):
-            return p[0]
+            return StatementFull(p[0])
 
         @self.pg.production('statement : expression')
         def statement_expr(state, p):
-            return p[0]
+            return Statement(p[0])
 
         @self.pg.production('statement : LET IDENTIFIER = expression')
         def statement_assignment(state, p):
-            print("LET")
             return Assignment(Variable(p[1].getstr(), state), p[3], state)
 
         @self.pg.production('statement_full : FUNCTION IDENTIFIER ( ) { block }')
@@ -103,16 +103,12 @@ class Parser:
         @self.pg.production('expression : expression DIV expression')
         def expression_binary_operator(state, p):
             if p[1].gettokentype() == 'SUM':
-                print("SUM")
                 return Sum(p[0], p[2], state)
             elif p[1].gettokentype() == 'SUB':
-                print("SUB")
                 return Sub(p[0], p[2], state)
             elif p[1].gettokentype() == 'MUL':
-                print("MUL")
                 return Mul(p[0], p[2], state)
             elif p[1].gettokentype() == 'DIV':
-                print("DIV")
                 return Div(p[0], p[2], state)
             else:
                 raise LogicError('Oops, this should not be possible!')

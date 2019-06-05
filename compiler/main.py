@@ -1,17 +1,10 @@
 from compiler.lexer import Lexer
 from compiler.parser import Parser, ParserState
+from compiler.JSONparsedTree import Node, write
+from rply.lexer import LexerStream
+from copy import copy
 from pprint import pprint
 import traceback
-
-
-class Environment(object):
-    # Dummy class for later on purposes !
-    def __init__(self):
-        # We want to hold a dict of declared variables & functions.
-        self.variables = {}
-        self.functions = {}
-        pass  # End Environment's constructor !
-
 
 if_else_statement = """
 if (False) {
@@ -60,18 +53,16 @@ function main() {
 main();
 
 """
-parsed_tree = """
-let a = 2 / 5 + 6 * 20;
-"""
 
 lexer = Lexer().build()  # Build the lexer using LexerGenerator
+tokens: LexerStream
 try:
-    tokens = lexer.lex(parsed_tree)  # Stream the input to analysis the lexical syntax
-    tokenType = map(lambda x: x.gettokentype(), list(tokens))
-    tokenName = map(lambda x: x.getstr(), list(tokens))
-    # pprint(list(tokens))
-    # pprint(list(tokenType))
-    # pprint(list(tokenName))
+    tokens = lexer.lex(call_declared_functions)  # Stream the input to analysis the lexical syntax
+    tokenType = map(lambda x: x.gettokentype(), copy(tokens))
+    tokenName = map(lambda x: x.getstr(), copy(tokens))
+    pprint(list(copy(tokens)))
+    # pprint(list(copy(tokenType)))
+    # pprint(list(copy(tokenName)))
 except (BaseException, Exception):
     traceback.print_exc()
 finally:
@@ -79,11 +70,13 @@ finally:
 
 SymbolTable = ParserState()
 parser = Parser().build()  # Build the LR-parser using ParserGenerator
+root = Node("main")
 try:
-    parser.parse(lexer.lex(parsed_tree), state=SymbolTable).eval(Environment())
+    parser.parse(tokens, state=SymbolTable).eval(root)
 except (BaseException, Exception):
     traceback.print_exc()
 finally:
+    write(root)
     print("------------------------------Declared Variables & Functions are:------------------------------")
     pprint(SymbolTable.variables)
     pprint(SymbolTable.functions)

@@ -1,4 +1,5 @@
 from rply.token import BaseBox
+from compiler.JSONparsedTree import Node
 from compiler.errors import *
 
 
@@ -8,7 +9,7 @@ from compiler.errors import *
 
 class Program(BaseBox):
     def __init__(self, statement, program, state):
-        self.env = state
+        self.state = state
         if type(program) is Program:
             self.statements = program.get_statements()
             self.statements.insert(0, statement)
@@ -21,11 +22,18 @@ class Program(BaseBox):
     def get_statements(self):
         return self.statements
 
-    def eval(self, env):
+    def eval(self, node):
         # print("Program<%s> statement's counter: %s" % (self, len(self.statements)))
         result = None
-        for statement in self.statements:
-            result = statement.eval(env)  # Only now the statement.eval(env) does effect !
+        for i, statement in enumerate(self.statements):
+            left = Node('statement_full')
+            right = Node('program')
+            if i == len(self.statements) - 1:  # If last statement then stop appending Node("program") to the right !
+                node.children.extend([left])
+            else:
+                node.children.extend([left, right])
+            node = right
+            result = statement.eval(left)  # Only now the statement.eval(node) does effect !
         return result  # The result is not been used yet !
 
     def rep(self):
@@ -38,7 +46,7 @@ class Program(BaseBox):
 
 class Block(BaseBox):
     def __init__(self, statement, block, state):
-        self.env = state
+        self.state = state
         if type(block) is Block:
             self.statements = block.get_statements()
             self.statements.insert(0, statement)
@@ -51,11 +59,18 @@ class Block(BaseBox):
     def get_statements(self):
         return self.statements
 
-    def eval(self, env):
+    def eval(self, node):
         # print("Block<%s> statement's counter: %s" % (self, len(self.statements)))
         result = None
-        for statement in self.statements:
-            result = statement.eval(env)  # Only now the statement.eval(env) does effect !
+        for i, statement in enumerate(self.statements):
+            left = Node('statement_full')
+            right = Node('block')
+            if i == len(self.statements) - 1:  # If last statement then stop appending Node("block") to the right !
+                node.children.extend([left])
+            else:
+                node.children.extend([left, right])
+            node = right
+            result = statement.eval(left)  # Only now the statement.eval(node) does effect !
         return result  # The result is not been used yet !
 
     def rep(self):
@@ -71,15 +86,22 @@ class If(BaseBox):
         self.condition = condition
         self.body = body
         self.else_body = else_body
-        self.env = state
+        self.state = state
 
-    def eval(self, env):
-        condition = self.condition.eval(env)
+    def eval(self, node):
+        expression = Node("expression")
+        node.children.extend([Node("IF"), Node("("), expression, Node(")")])
+        condition = self.condition.eval(expression)
+        block = Node("block")
+        node.children.extend([Node("{"), block, Node("}")])
+        else_block = Node("block")
+        if self.else_body is not None:
+            node.children.extend([Node("{"), else_block, Node("}")])
         if bool(condition) is True:
-            return self.body.eval(env)
+            return self.body.eval(block)
         else:
             if self.else_body is not None:
-                return self.else_body.eval(env)
+                return self.else_body.eval(else_block)
         return None
 
     def rep(self):
@@ -90,15 +112,19 @@ class Variable(BaseBox):
     def __init__(self, name, state):
         self.name = str(name)
         self.value = None
-        self.env = state
+        self.state = state
 
     def get_name(self):
         return str(self.name)
 
-    def eval(self, env):
-        if dict(self.env.variables).get(self.name) is not None:
-            self.value = self.env.variables[self.name]
+    def eval(self, node):
+        identifier = Node("IDENTIFIER")
+        node.children.extend([identifier])
+        if dict(self.state.variables).get(self.name) is not None:
+            self.value = self.state.variables[self.name]
+            identifier.children.extend([Node(self.name, [Node(self.value)])])
             return self.value
+        identifier.children.extend([Node("Variable <%s> is not yet defined" % str(self.name))])
         raise LogicError("Variable <%s> is not yet defined" % str(self.name))
 
     def to_string(self):
@@ -115,7 +141,9 @@ class FunctionDeclaration(BaseBox):
         self.block = block
         state.functions[self.name] = self
 
-    def eval(self, env):
+    def eval(self, node):
+        identifier = Node(self.name)
+        node.children.extend([Node("FUNCTION"), identifier, Node("{"), Node("block"), Node("}")])
         return self
 
     def to_string(self):
@@ -128,8 +156,10 @@ class CallFunction(BaseBox):
         self.args = args
         self.state = state
 
-    def eval(self, env):
-        return self.state.functions[self.name].block.eval(env)
+    def eval(self, node):
+        identifier = Node(self.name + " ( )")
+        node.children.extend([identifier])
+        return self.state.functions[self.name].block.eval(identifier)
 
     def to_string(self):
         return "<call '%s'>" % self.name
@@ -139,10 +169,10 @@ class BaseFunction(BaseBox):
     def __init__(self, expression, state):
         self.expression = expression
         self.value = None
-        self.env = state
+        self.state = state
         self.roundOffDigits = 10
 
-    def eval(self, env):
+    def eval(self, node):
         raise NotImplementedError("This is abstract method from abstract class BaseFunction(BaseBox){...} !")
 
     def to_string(self):
@@ -156,9 +186,11 @@ class Absolute(BaseFunction):
     def __init__(self, expression, state):
         super().__init__(expression, state)
 
-    def eval(self, env):
+    def eval(self, node):
         import re as regex
-        self.value = self.expression.eval(env)
+        expression = Node("expression")
+        node.children.extend([Node("ABSOLUTE"), Node("("), expression, Node(")"), Node(";")])
+        self.value = self.expression.eval(expression)
         if regex.search('^-?\d+(\.\d+)?$', str(self.value)):
             self.value = abs(self.value)
             return self.value
@@ -173,9 +205,11 @@ class Sin(BaseFunction):
     def __init__(self, expression, state):
         super().__init__(expression, state)
 
-    def eval(self, env):
+    def eval(self, node):
         import re as regex
-        self.value = self.expression.eval(env)
+        expression = Node("expression")
+        node.children.extend([Node("SIN"), Node("("), expression, Node(")")])
+        self.value = self.expression.eval(expression)
         if regex.search('^-?\d+(\.\d+)?$', str(self.value)):
             import math
             self.value = round(math.sin(self.value), self.roundOffDigits)
@@ -191,9 +225,11 @@ class Cos(BaseFunction):
     def __init__(self, expression, state):
         super().__init__(expression, state)
 
-    def eval(self, env):
+    def eval(self, node):
         import re as regex
-        self.value = self.expression.eval(env)
+        expression = Node("expression")
+        node.children.extend([Node("COS"), Node("("), expression, Node(")")])
+        self.value = self.expression.eval(expression)
         if regex.search('^-?\d+(\.\d+)?$', str(self.value)):
             import math
             self.value = round(math.cos(self.value), self.roundOffDigits)
@@ -209,9 +245,11 @@ class Tan(BaseFunction):
     def __init__(self, expression, state):
         super().__init__(expression, state)
 
-    def eval(self, env):
+    def eval(self, node):
         import re as regex
-        self.value = self.expression.eval(env)
+        expression = Node("expression")
+        node.children.extend([Node("TAN"), Node("("), expression, Node(")")])
+        self.value = self.expression.eval(expression)
         if regex.search('^-?\d+(\.\d+)?$', str(self.value)):
             import math
             self.value = round(math.tan(self.value), self.roundOffDigits)
@@ -229,9 +267,12 @@ class Pow(BaseFunction):
         self.expression2 = expression2
         self.value2 = None
 
-    def eval(self, env):
-        self.value = self.expression.eval(env)
-        self.value2 = self.expression2.eval(env)
+    def eval(self, node):
+        expression = Node("expression")
+        expression2 = Node("expression")
+        node.children.extend([Node("POWER"), Node("("), expression, Node(","), expression2, Node(")")])
+        self.value = self.expression.eval(expression)
+        self.value2 = self.expression2.eval(expression2)
         import re as regex
         match1 = regex.search('^-?\d+(\.\d+)?$', str(self.value))
         match2 = regex.search('^-?\d+(\.\d+)?$', str(self.value2))
@@ -250,9 +291,13 @@ class Pow(BaseFunction):
 class Constant(BaseBox):
     def __init__(self, state):
         self.value = None
-        self.env = state
+        self.state = state
 
-    def eval(self, env):
+    def eval(self, node):
+        value = Node(self.value)
+        typed = Node(self.__class__.__name__.upper(), [value])
+        constant = Node("const", [typed])
+        node.children.extend([constant])
         return self.value
 
     def to_string(self):
@@ -343,11 +388,14 @@ class BinaryOp(BaseBox):
 
 
 class Assignment(BinaryOp):
-    def eval(self, env):
+    def eval(self, node):
         if isinstance(self.left, Variable):
             var_name = self.left.get_name()
             if dict(self.state.variables).get(var_name) is None:
-                self.state.variables[var_name] = self.right.eval(env)
+                identifier = Node("IDENTIFIER", [Node(var_name)])
+                expression = Node("expression")
+                node.children.extend([Node("LET"), identifier, Node("="), expression])
+                self.state.variables[var_name] = self.right.eval(expression)
                 # print(self.state.variables)
                 return self.state.variables  # Return the ParserState() that hold the variables.
 
@@ -362,71 +410,110 @@ class Assignment(BinaryOp):
 
 
 class Sum(BinaryOp):
-    def eval(self, env):
-        return self.left.eval(env) + self.right.eval(env)
+    def eval(self, node):
+        left = Node("expression")
+        right = Node("expression")
+        node.children.extend([left, Node("+"), right])
+        return self.left.eval(left) + self.right.eval(right)
 
 
 class Sub(BinaryOp):
-    def eval(self, env):
-        return self.left.eval(env) - self.right.eval(env)
+    def eval(self, node):
+        left = Node("expression")
+        right = Node("expression")
+        node.children.extend([left, Node("-"), right])
+        return self.left.eval(left) - self.right.eval(right)
 
 
 class Mul(BinaryOp):
-    def eval(self, env):
-        return self.left.eval(env) * self.right.eval(env)
+    def eval(self, node):
+        left = Node("expression")
+        right = Node("expression")
+        node.children.extend([left, Node("*"), right])
+        return self.left.eval(left) * self.right.eval(right)
 
 
 class Div(BinaryOp):
-    def eval(self, env):
-        return self.left.eval(env) / self.right.eval(env)
+    def eval(self, node):
+        left = Node("expression")
+        right = Node("expression")
+        node.children.extend([left, Node("/"), right])
+        return self.left.eval(left) / self.right.eval(right)
 
 
 class Equal(BinaryOp):
-    def eval(self, env):
-        return self.left.eval(env) == self.right.eval(env)
+    def eval(self, node):
+        left = Node("expression")
+        right = Node("expression")
+        node.children.extend([left, Node("=="), right])
+        return self.left.eval(left) == self.right.eval(right)
 
 
 class NotEqual(BinaryOp):
-    def eval(self, env):
-        return self.left.eval(env) != self.right.eval(env)
+    def eval(self, node):
+        left = Node("expression")
+        right = Node("expression")
+        node.children.extend([left, Node("!="), right])
+        return self.left.eval(left) != self.right.eval(right)
 
 
 class GreaterThan(BinaryOp):
-    def eval(self, env):
-        return self.left.eval(env) > self.right.eval(env)
+    def eval(self, node):
+        left = Node("expression")
+        right = Node("expression")
+        node.children.extend([left, Node(">"), right])
+        return self.left.eval(left) > self.right.eval(right)
 
 
 class LessThan(BinaryOp):
-    def eval(self, env):
-        return self.left.eval(env) < self.right.eval(env)
+    def eval(self, node):
+        left = Node("expression")
+        right = Node("expression")
+        node.children.extend([left, Node("<"), right])
+        return self.left.eval(left) < self.right.eval(right)
 
 
 class GreaterThanEqual(BinaryOp):
-    def eval(self, env):
-        return self.left.eval(env) >= self.right.eval(env)
+    def eval(self, node):
+        left = Node("expression")
+        right = Node("expression")
+        node.children.extend([left, Node(">="), right])
+        return self.left.eval(left) >= self.right.eval(right)
 
 
 class LessThanEqual(BinaryOp):
-    def eval(self, env):
-        return self.left.eval(env) <= self.right.eval(env)
+    def eval(self, node):
+        left = Node("expression")
+        right = Node("expression")
+        node.children.extend([left, Node("<="), right])
+        return self.left.eval(left) <= self.right.eval(right)
 
 
 class And(BinaryOp):
-    def eval(self, env):
-        return self.left.eval(env) and self.right.eval(env)
+    def eval(self, node):
+        left = Node("expression")
+        right = Node("expression")
+        node.children.extend([left, Node("and"), right])
+        return self.left.eval(left) and self.right.eval(right)
 
 
 class Or(BinaryOp):
-    def eval(self, env):
-        return self.left.eval(env) or self.right.eval(env)
+    def eval(self, node):
+        left = Node("expression")
+        right = Node("expression")
+        node.children.extend([left, Node("or"), right])
+        return self.left.eval(left) or self.right.eval(right)
 
 
 class Not(BaseBox):
     def __init__(self, expression, state):
-        self.value = expression.eval(state)
-        self.env = state
+        self.value = expression
+        self.state = state
 
-    def eval(self, env):
+    def eval(self, node):
+        expression = Node("expression")
+        node.children.extend([Node("Not"), expression])
+        self.value = self.value.eval(expression)
         if isinstance(self.value, bool):
             return not bool(self.value)
         raise LogicError("Cannot 'not' that")
@@ -435,28 +522,75 @@ class Not(BaseBox):
 class Print(BaseBox):
     def __init__(self, expression=None, state=None):
         self.value = expression
-        self.env = state
+        self.state = state
 
-    def eval(self, env):
+    def eval(self, node):
+        node.children.extend([Node("PRINT"), Node("(")])
         if self.value is None:
             print()
         else:
-            print(self.value.eval(env))
+            expression = Node("expression")
+            node.children.extend([expression])
+            print(self.value.eval(expression))
+        node.children.extend([Node(")")])
 
 
 class Input(BaseBox):
     def __init__(self, expression=None, state=None):
         self.value = expression
-        self.env = state
+        self.state = state
 
-    def eval(self, env):
+    def eval(self, node):
+        node.children.extend([Node("CONSOLE_INPUT"), Node("(")])
         if self.value is None:
             result = input()
         else:
-            result = input(self.value.eval(env))
-
+            expression = Node("expression")
+            node.children.extend([expression])
+            result = input(self.value.eval(expression))
+        node.children.extend([Node(")")])
         import re as regex
         if regex.search('^-?\d+(\.\d+)?$', str(result)):
             return float(result)
         else:
             return str(result)
+
+
+class Main(BaseBox):
+    def __init__(self, program):
+        self.program = program
+
+    def eval(self, node):
+        program = Node("program")
+        node.children.extend([program])
+        return self.program.eval(program)
+
+
+class ExpressParenthesis(BaseBox):
+    def __init__(self, expression):
+        self.expression = expression
+
+    def eval(self, node):
+        expression = Node("expression")
+        node.children.extend([Node("("), expression, Node(")")])
+        return self.expression.eval(expression)
+
+
+class StatementFull(BaseBox):
+    def __init__(self, statement):
+        self.statement = statement
+
+    def eval(self, node):
+        statement = Node("statement")
+        node.children.extend([statement, Node(";")])
+        return self.statement.eval(statement)
+
+
+class Statement(BaseBox):
+    def __init__(self, expression):
+        self.expression = expression
+
+    def eval(self, node):
+        expression = Node("expression")
+        node.children.extend([expression])
+        return self.expression.eval(expression)
