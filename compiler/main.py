@@ -69,13 +69,11 @@ finally:
     print("Finish lexical analysis !")
 
 SymbolTable = ParserState()
-parser = Parser().build()  # Build the LR-parser using ParserGenerator
 syntaxRoot: Node
 semanticRoot = Node("main")
 try:
-    treeProgram = parser.parse(tokens, state=SymbolTable)
-    treeProgram.eval(semanticRoot)
-    syntaxRoot = Node("syntax")
+    syntaxRoot = Node("main", Parser(syntax=True).build().parse(copy(tokens), state=SymbolTable))  # Get syntax tree !
+    Parser().build().parse(copy(tokens), state=SymbolTable).eval(semanticRoot)  # Get semantic tree !
 except (BaseException, Exception):
     traceback.print_exc()
 finally:
