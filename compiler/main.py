@@ -70,13 +70,17 @@ finally:
 
 SymbolTable = ParserState()
 parser = Parser().build()  # Build the LR-parser using ParserGenerator
-root = Node("main")
+syntaxRoot: Node
+semanticRoot = Node("main")
 try:
-    parser.parse(tokens, state=SymbolTable).eval(root)
+    treeProgram = parser.parse(tokens, state=SymbolTable)
+    treeProgram.eval(semanticRoot)
+    syntaxRoot = Node("syntax")
 except (BaseException, Exception):
     traceback.print_exc()
 finally:
-    write(root)
+    write(syntaxRoot, "SyntaxAnalyzer")
+    write(semanticRoot, "SemanticAnalyzer")
     print("------------------------------Declared Variables & Functions are:------------------------------")
     pprint(SymbolTable.variables)
     pprint(SymbolTable.functions)

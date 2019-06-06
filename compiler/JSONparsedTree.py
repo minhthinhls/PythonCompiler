@@ -34,8 +34,8 @@ def serialize(obj):
         return None
 
 
-def write(root: Node):
+def write(root: Node, filename: str):
     data = json.dumps(ParsedTree(root), default=serialize)
-    with open('../treant-js-master/tree.json', 'w') as f:
+    with open('../treant-js-master/%s.json' % filename, 'w') as f:
         f.write("JSONParsedTree = ")
         f.write(data)

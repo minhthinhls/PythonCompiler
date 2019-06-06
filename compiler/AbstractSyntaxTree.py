@@ -96,7 +96,7 @@ class If(BaseBox):
         node.children.extend([Node("{"), block, Node("}")])
         else_block = Node("block")
         if self.else_body is not None:
-            node.children.extend([Node("{"), else_block, Node("}")])
+            node.children.extend([Node("else"), Node("{"), else_block, Node("}")])
         if bool(condition) is True:
             return self.body.eval(block)
         else:
