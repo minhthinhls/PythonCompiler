@@ -6,6 +6,22 @@ from copy import copy
 from pprint import pprint
 import traceback
 
+basic_assignment = """
+    let initial = 60;
+    let rate = 2;
+    let position = initial + rate * 60;
+    print(position);
+    print(rate);
+"""
+function_declaration = """
+function main() {
+    let initial = 60;
+    let rate = 2;
+    let position = initial + rate * 60;
+    print(position);
+}
+main();
+"""
 if_else_statement = """
 if (False) {
     print(False == (5 != 5));
@@ -51,7 +67,6 @@ function main() {
 }
 
 main();
-
 """
 
 lexer = Lexer().build()  # Build the lexer using LexerGenerator
